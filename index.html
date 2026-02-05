@@ -13,7 +13,7 @@
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       background: var(--bg); color: var(--text);
     }
-    .wrap{ max-width:520px; margin:0 auto; }
+    .wrap{ max-width:560px; margin:0 auto; }
     .card{
       background: var(--card);
       border: 1px solid rgba(255,255,255,.08);
@@ -22,11 +22,54 @@
       box-shadow: 0 10px 30px rgba(0,0,0,.25);
     }
     .title{ font-size:18px; margin:0 0 10px 0; }
+    .tag{
+      display:inline-block;
+      padding:4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      font-size:12px; color: var(--muted);
+      margin-left:8px;
+      vertical-align: middle;
+    }
+    .hidden{ display:none !important; }
+
     .price{
       font-size:34px; font-weight:800; letter-spacing: .2px;
-      margin: 0 0 4px 0;
+      margin: 6px 0 4px 0;
     }
     .sub{ color: var(--muted); margin:0 0 12px 0; font-size:13px; }
+
+    .topGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+      margin-bottom:12px;
+    }
+    .stat{
+      padding:10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.03);
+    }
+    .stat .k{ color: var(--muted); font-size:12px; }
+    .stat .v{ font-weight:800; font-size:16px; margin-top:4px; }
+
+    .sliderBox{
+      margin: 10px 0 14px 0;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.03);
+    }
+    .sliderRow{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px;
+      margin-bottom:8px;
+    }
+    .sliderRow .label{ color: var(--muted); font-size:13px; }
+    input[type="range"]{ width:100%; }
 
     .chartWrap{
       margin: 8px 0 14px 0;
@@ -46,11 +89,10 @@
       color: var(--text);
       background: rgba(255,255,255,.06);
       font-size:16px;
-      font-weight:700;
+      font-weight:800;
       cursor:pointer;
       user-select:none;
     }
-    .hidden{ display:none !important; }
 
     .pnlBox{
       margin-top:14px;
@@ -60,31 +102,53 @@
       background: rgba(255,255,255,.03);
     }
     .pnlLabel{ color: var(--muted); font-size:13px; margin:0 0 6px 0; }
-    .pnlValue{ font-size:22px; font-weight:800; margin:0; }
-    .small{ color: var(--muted); font-size:12px; margin-top:10px; }
-    .tag{
-      display:inline-block;
-      padding:4px 8px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.04);
-      font-size:12px; color: var(--muted);
-      margin-left:8px;
-      vertical-align: middle;
-    }
+    .pnlValue{ font-size:20px; font-weight:900; margin:0; }
+    .small{ color: var(--muted); font-size:12px; margin-top:10px; line-height:1.35; }
   </style>
 </head>
 
 <body>
   <div class="wrap">
     <div class="card">
-      <h1 class="title">Мини-трейдер BTC/USD <span id="posTag" class="tag hidden"></span></h1>
+      <h1 class="title">
+        Мини-трейдер BTC/USD
+        <span id="posTag" class="tag hidden"></span>
+        <span class="tag">Leverage x10</span>
+      </h1>
+
+      <div class="topGrid">
+        <div class="stat">
+          <div class="k">Баланс (Equity)</div>
+          <div class="v" id="equity">$1,000.00</div>
+        </div>
+        <div class="stat">
+          <div class="k">Доступно</div>
+          <div class="v" id="available">$1,000.00</div>
+        </div>
+        <div class="stat">
+          <div class="k">Маржа (в позиции)</div>
+          <div class="v" id="margin">$0.00</div>
+        </div>
+        <div class="stat">
+          <div class="k">Объём (Notional)</div>
+          <div class="v" id="notional">$0.00</div>
+        </div>
+      </div>
 
       <p class="price" id="price">$45,000.00</p>
       <p class="sub">Курс меняется каждую секунду на ±1% (случайно). График: последние 10 свечей.</p>
 
+      <div class="sliderBox" id="sliderBox">
+        <div class="sliderRow">
+          <div class="label">Вход: <b id="pctLabel">10%</b> от доступного депозита</div>
+          <div class="label">Маржа: <b id="marginPreview">$100.00</b></div>
+        </div>
+        <input id="pctSlider" type="range" min="1" max="100" value="10" />
+        <div class="small">Под x10 ликвидация примерно при движении цены ~10% против тебя (если вся маржа в сделке).</div>
+      </div>
+
       <div class="chartWrap">
-        <canvas id="chart" width="520" height="170"></canvas>
+        <canvas id="chart"></canvas>
       </div>
 
       <div class="row" id="entryRow">
@@ -97,7 +161,7 @@
       </div>
 
       <div class="pnlBox hidden" id="pnlBox">
-        <p class="pnlLabel">Текущий результат (PnL)</p>
+        <p class="pnlLabel">Текущий результат</p>
         <p class="pnlValue" id="pnlValue">0.00%</p>
         <div class="small" id="pnlDetails"></div>
       </div>
@@ -105,23 +169,49 @@
   </div>
 
   <script>
-    // --- State
-    let price = 45000;
-    let position = null; // 'long' | 'short' | null
-    let entryPrice = null;
-    let lastPnl = 0;
-
-    // Candles: [{o,h,l,c}]
+    // ======= CONFIG =======
+    const LEVERAGE = 10;
     const MAX_CANDLES = 10;
+
+    // ======= STATE =======
+    let price = 45000;
+
+    // "кошелёк"
+    let equity = 1000;       // общий капитал
+    let available = 1000;    // доступно (equity - marginLocked)
+    let marginLocked = 0;    // маржа в позиции
+
+    // позиция
+    let position = null;     // 'long' | 'short' | null
+    let entryPrice = null;
+    let margin = 0;
+    let notional = 0;
+
+    let lastPnlPct = 0;
+    let lastPnlUsd = 0;
+
+    // свечи
     const candles = [];
 
-    // --- DOM
+    // ======= DOM =======
     const priceEl = document.getElementById('price');
+
+    const equityEl = document.getElementById('equity');
+    const availableEl = document.getElementById('available');
+    const marginEl = document.getElementById('margin');
+    const notionalEl = document.getElementById('notional');
+
+    const pctSlider = document.getElementById('pctSlider');
+    const pctLabel = document.getElementById('pctLabel');
+    const marginPreview = document.getElementById('marginPreview');
+    const sliderBox = document.getElementById('sliderBox');
+
     const longBtn = document.getElementById('longBtn');
     const shortBtn = document.getElementById('shortBtn');
     const closeBtn = document.getElementById('closeBtn');
     const entryRow = document.getElementById('entryRow');
     const closeRow = document.getElementById('closeRow');
+
     const pnlBox = document.getElementById('pnlBox');
     const pnlValue = document.getElementById('pnlValue');
     const pnlDetails = document.getElementById('pnlDetails');
@@ -130,7 +220,19 @@
     const canvas = document.getElementById('chart');
     const ctx = canvas.getContext('2d');
 
-    // Make canvas crisp on HiDPI
+    // ======= HELPERS =======
+    function fmtMoney(x) {
+      return x.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+    }
+    function fmtPct(x) {
+      const sign = x > 0 ? '+' : '';
+      return `${sign}${x.toFixed(2)}%`;
+    }
+    function randomStepWithin1pct() {
+      return (Math.random() * 2 - 1) * 0.01;
+    }
+    function randBetween(a, b) { return a + Math.random() * (b - a); }
+
     function resizeCanvasToDisplaySize() {
       const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
@@ -142,23 +244,29 @@
       }
     }
 
-    // --- Helpers
-    function fmtMoney(x) {
-      return x.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
-    }
-    function fmtPct(x) {
-      const sign = x > 0 ? '+' : '';
-      return `${sign}${x.toFixed(2)}%`;
-    }
-    function randomStepWithin1pct() {
-      return (Math.random() * 2 - 1) * 0.01; // -1%..+1%
-    }
-    function randBetween(a, b) { return a + Math.random() * (b - a); }
-
-    function calcPnlPercent() {
+    // ======= FINANCE LOGIC =======
+    function calcPnlUsd(curPrice) {
       if (!position || !entryPrice) return 0;
-      if (position === 'long') return (price / entryPrice - 1) * 100;
-      return (entryPrice / price - 1) * 100; // short
+      if (position === 'long') return notional * (curPrice / entryPrice - 1);
+      return notional * (entryPrice / curPrice - 1); // short
+    }
+    function calcPnlPctOnMargin(pnlUsd) {
+      // PnL% относительно маржи
+      if (!margin) return 0;
+      return (pnlUsd / margin) * 100;
+    }
+
+    function updateStatsUI() {
+      equityEl.textContent = fmtMoney(equity);
+      availableEl.textContent = fmtMoney(available);
+      marginEl.textContent = fmtMoney(marginLocked);
+      notionalEl.textContent = fmtMoney(position ? notional : 0);
+
+      // preview для слайдера
+      const pct = Number(pctSlider.value);
+      pctLabel.textContent = pct + '%';
+      const m = Math.max(0, available * (pct / 100));
+      marginPreview.textContent = fmtMoney(m);
     }
 
     function renderPrice() {
@@ -166,59 +274,119 @@
     }
 
     function renderPnl() {
-      lastPnl = calcPnlPercent();
-      pnlValue.textContent = (lastPnl >= 0 ? '🟢 ' : '🔴 ') + fmtPct(lastPnl);
-      pnlDetails.textContent = `Вход: ${fmtMoney(entryPrice)} • Сейчас: ${fmtMoney(price)}`;
+      const pnlUsd = calcPnlUsd(price);
+      const pnlPct = calcPnlPctOnMargin(pnlUsd);
+
+      lastPnlUsd = pnlUsd;
+      lastPnlPct = pnlPct;
+
+      pnlValue.textContent =
+        (pnlUsd >= 0 ? '🟢 ' : '🔴 ') + `${fmtPct(pnlPct)}  (${pnlUsd >= 0 ? '+' : ''}${fmtMoney(pnlUsd)})`;
+
+      pnlDetails.textContent =
+        `Вход: ${fmtMoney(entryPrice)} • Сейчас: ${fmtMoney(price)}\n` +
+        `Маржа: ${fmtMoney(margin)} • Объём: ${fmtMoney(notional)} • Плечо: x${LEVERAGE}`;
+
+      // ликвидация: потеряли всю маржу
+      if (pnlUsd <= -margin) {
+        liquidate();
+      }
     }
 
     function resetUI() {
       position = null;
       entryPrice = null;
-      lastPnl = 0;
+      margin = 0;
+      notional = 0;
+      lastPnlUsd = 0;
+      lastPnlPct = 0;
 
       entryRow.classList.remove('hidden');
       closeRow.classList.add('hidden');
       pnlBox.classList.add('hidden');
+      sliderBox.classList.remove('hidden');
 
       posTag.classList.add('hidden');
       posTag.textContent = '';
+
+      updateStatsUI();
     }
 
-    // --- Trading
     function openPosition(type) {
       if (position) return;
+      if (available <= 0.01) {
+        alert('Недостаточно средств для открытия позиции.');
+        return;
+      }
+
+      const pct = Number(pctSlider.value);
+      const m = available * (pct / 100);
+
+      if (m <= 0.01) {
+        alert('Слишком маленькая маржа. Увеличь процент или пополни баланс :)');
+        return;
+      }
+
       position = type;
       entryPrice = price;
+      margin = m;
+      notional = margin * LEVERAGE;
 
+      // блокируем маржу
+      marginLocked = margin;
+      available = equity - marginLocked;
+
+      // UI
       entryRow.classList.add('hidden');
       closeRow.classList.remove('hidden');
-
       pnlBox.classList.remove('hidden');
+      sliderBox.classList.add('hidden');
+
       posTag.textContent = type.toUpperCase();
       posTag.classList.remove('hidden');
 
+      updateStatsUI();
       renderPnl();
     }
 
-    function closePosition() {
+    function closePosition(reason = 'close') {
       if (!position) return;
 
-      renderPnl();
+      // фиксируем итог
+      const pnlUsd = Math.max(calcPnlUsd(price), -margin); // не ниже -маржи
+      const pnlPct = calcPnlPctOnMargin(pnlUsd);
+
+      // освобождаем маржу и применяем PnL
+      // equity до сделки было equity; прибыль/убыток меняет equity
+      equity = equity + pnlUsd;
+
+      // снять блокировку маржи
+      marginLocked = 0;
+      available = equity;
+
+      const title = reason === 'liq' ? 'Ликвидация' : 'Сделка закрыта';
       const text =
+        `${title}\n` +
         `${position.toUpperCase()} • Вход: ${fmtMoney(entryPrice)} → Выход: ${fmtMoney(price)}\n` +
-        `Итог: ${fmtPct(lastPnl)}`;
+        `Маржа: ${fmtMoney(margin)} • Объём: ${fmtMoney(notional)} (x${LEVERAGE})\n` +
+        `Итог: ${fmtPct(pnlPct)}  (${pnlUsd >= 0 ? '+' : ''}${fmtMoney(pnlUsd)})\n` +
+        `Новый баланс: ${fmtMoney(equity)}`;
 
       alert(text);
       resetUI();
     }
 
-    // --- Candles
+    function liquidate() {
+      // чтобы не повторялось каждую секунду
+      if (!position) return;
+      closePosition('liq');
+    }
+
+    // ======= CANDLES & CHART =======
     function pushCandle(open, close) {
-      // делаем фитили (high/low) чуть шире, чем тело
       const baseHi = Math.max(open, close);
       const baseLo = Math.min(open, close);
 
-      // случайные "фитили" до ~0.3% от цены
       const wickUp = baseHi * randBetween(0, 0.003);
       const wickDn = baseLo * randBetween(0, 0.003);
 
@@ -229,52 +397,30 @@
       while (candles.length > MAX_CANDLES) candles.shift();
     }
 
-    function seedCandles() {
-      // начальные 10 свечей, чтобы график сразу был заполнен
-      let p = price;
-      for (let i = 0; i < MAX_CANDLES; i++) {
-        const step = randomStepWithin1pct();
-        const next = Math.max(p * (1 + step), 1);
-        pushCandle(p, next);
-        p = next;
-      }
-      price = p;
-      renderPrice();
-    }
-
-    // --- Chart drawing
     function drawChart() {
       resizeCanvasToDisplaySize();
       const W = canvas.width, H = canvas.height;
 
-      // background
       ctx.clearRect(0, 0, W, H);
 
-      const pad = Math.round(12 * (window.devicePixelRatio || 1));
+      const dpr = window.devicePixelRatio || 1;
+      const pad = Math.round(12 * dpr);
       const innerW = W - pad * 2;
       const innerH = H - pad * 2;
 
-      // if no data
       if (candles.length === 0) return;
 
-      // Determine scale from highs/lows
       let hi = -Infinity, lo = Infinity;
-      for (const c of candles) {
-        if (c.h > hi) hi = c.h;
-        if (c.l < lo) lo = c.l;
-      }
-
-      // add small margin
-      const margin = (hi - lo) * 0.08 || hi * 0.01;
-      hi += margin;
-      lo -= margin;
+      for (const c of candles) { hi = Math.max(hi, c.h); lo = Math.min(lo, c.l); }
+      const marginY = (hi - lo) * 0.08 || hi * 0.01;
+      hi += marginY; lo -= marginY;
 
       function yOf(val) {
         const t = (val - lo) / (hi - lo);
         return pad + (innerH * (1 - t));
       }
 
-      // grid (simple 3 horizontal lines)
+      // grid
       ctx.globalAlpha = 0.35;
       ctx.strokeStyle = 'rgba(255,255,255,0.20)';
       ctx.lineWidth = 1;
@@ -289,7 +435,7 @@
 
       const n = candles.length;
       const slot = innerW / n;
-      const bodyW = Math.max(3, slot * 0.55);
+      const bodyW = Math.max(3 * dpr, slot * 0.55);
 
       for (let i = 0; i < n; i++) {
         const c = candles[i];
@@ -302,40 +448,46 @@
 
         const isGreen = c.c >= c.o;
 
-        // wick
         ctx.strokeStyle = isGreen ? 'rgba(0,255,140,0.85)' : 'rgba(255,70,70,0.85)';
-        ctx.lineWidth = Math.max(1, bodyW * 0.12);
+        ctx.lineWidth = Math.max(1 * dpr, bodyW * 0.12);
         ctx.beginPath();
         ctx.moveTo(xCenter, yHigh);
         ctx.lineTo(xCenter, yLow);
         ctx.stroke();
 
-        // body
         const top = Math.min(yOpen, yClose);
         const bottom = Math.max(yOpen, yClose);
-        const bodyH = Math.max(2, bottom - top);
+        const bodyH = Math.max(2 * dpr, bottom - top);
 
         ctx.fillStyle = isGreen ? 'rgba(0,255,140,0.85)' : 'rgba(255,70,70,0.85)';
-        ctx.fillRect(
-          xCenter - bodyW / 2,
-          top,
-          bodyW,
-          bodyH
-        );
+        ctx.fillRect(xCenter - bodyW / 2, top, bodyW, bodyH);
       }
     }
 
-    // --- Events
+    function seedCandles() {
+      let p = price;
+      for (let i = 0; i < MAX_CANDLES; i++) {
+        const step = randomStepWithin1pct();
+        const next = Math.max(p * (1 + step), 1);
+        pushCandle(p, next);
+        p = next;
+      }
+      price = p;
+      renderPrice();
+    }
+
+    // ======= EVENTS =======
     longBtn.addEventListener('click', () => openPosition('long'));
     shortBtn.addEventListener('click', () => openPosition('short'));
-    closeBtn.addEventListener('click', closePosition);
+    closeBtn.addEventListener('click', () => closePosition('close'));
+
+    pctSlider.addEventListener('input', updateStatsUI);
     window.addEventListener('resize', drawChart);
 
-    // --- Main loop (каждую секунду)
+    // ======= LOOP =======
     function tick() {
       const open = price;
-      const step = randomStepWithin1pct();
-      const close = Math.max(open * (1 + step), 1);
+      const close = Math.max(open * (1 + randomStepWithin1pct()), 1);
 
       price = close;
 
@@ -343,15 +495,16 @@
       renderPrice();
       drawChart();
 
-      if (position) renderPnl();
+      if (position) {
+        renderPnl();
+      }
     }
 
     // старт
     seedCandles();
+    updateStatsUI();
     drawChart();
     setInterval(tick, 1000);
   </script>
 </body>
 </html>
-
-
