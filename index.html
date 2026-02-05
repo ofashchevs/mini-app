@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BTC Mini Trader</title>
 
-  <!-- Telegram WebApp SDK -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
   <style>
     :root { --bg:#0b1220; --card:#111a2c; --text:#e6eefc; --muted:#9bb0d0; }
     *{ box-sizing:border-box; }
@@ -41,12 +38,9 @@
       font-size:16px;
       font-weight:700;
       cursor:pointer;
-      transition: transform .05s ease;
       user-select:none;
     }
-    button:active{ transform: scale(.99); }
     .hidden{ display:none !important; }
-
     .pnlBox{
       margin-top:14px;
       padding:12px;
@@ -75,16 +69,16 @@
     <div class="card">
       <h1 class="title">Мини-трейдер BTC/USD <span id="posTag" class="tag hidden"></span></h1>
 
-      <p class="price" id="price">$0.00</p>
-      <p class="sub" id="hint">Курс меняется каждую секунду на ±1% (случайно).</p>
+      <p class="price" id="price">$45,000.00</p>
+      <p class="sub">Курс меняется каждую секунду на ±1% (случайно).</p>
 
       <div class="row" id="entryRow">
         <button id="longBtn">Лонг</button>
         <button id="shortBtn">Шорт</button>
       </div>
 
-      <div class="row hidden" id="closeRow" style="position: relative; z-index: 10;">
-        <button id="closeBtn" style="pointer-events: auto;">Закрыть</button>
+      <div class="row hidden" id="closeRow">
+        <button id="closeBtn">Закрыть</button>
       </div>
 
       <div class="pnlBox hidden" id="pnlBox">
@@ -96,20 +90,9 @@
   </div>
 
   <script>
-    // --- Telegram init (не обязательно, но красиво для Mini App)
-    const tg = window.Telegram?.WebApp;
-    if (tg) {
-      tg.ready();
-      tg.expand();
-      // tg.setHeaderColor('#0b1220'); // опционально
-      // tg.setBackgroundColor('#0b1220'); // опционально
-    }
-
     // --- State
-    let price = 45000;              // стартовая цена (любая)
-    let intervalId = null;
-
-    let position = null;            // null | 'long' | 'short'
+    let price = 45000;
+    let position = null; // 'long' | 'short' | null
     let entryPrice = null;
     let lastPnl = 0;
 
@@ -118,7 +101,6 @@
     const longBtn = document.getElementById('longBtn');
     const shortBtn = document.getElementById('shortBtn');
     const closeBtn = document.getElementById('closeBtn');
-
     const entryRow = document.getElementById('entryRow');
     const closeRow = document.getElementById('closeRow');
     const pnlBox = document.getElementById('pnlBox');
@@ -134,20 +116,14 @@
       const sign = x > 0 ? '+' : '';
       return `${sign}${x.toFixed(2)}%`;
     }
-
     function randomStepWithin1pct() {
-      // случайное число от -0.01 до +0.01
-      return (Math.random() * 2 - 1) * 0.01;
+      return (Math.random() * 2 - 1) * 0.01; // -1%..+1%
     }
 
     function calcPnlPercent() {
       if (!position || !entryPrice) return 0;
-      if (position === 'long') {
-        return (price / entryPrice - 1) * 100;
-      } else {
-        // short: прибыль, когда цена падает
-        return (entryPrice / price - 1) * 100;
-      }
+      if (position === 'long') return (price / entryPrice - 1) * 100;
+      return (entryPrice / price - 1) * 100; // short
     }
 
     function renderPrice() {
@@ -155,14 +131,9 @@
     }
 
     function renderPnl() {
-      if (!position) return;
       lastPnl = calcPnlPercent();
-
-      pnlValue.textContent = fmtPct(lastPnl);
-      pnlDetails.textContent = `Вход: ${fmtMoney(entryPrice)} • Сейчас: ${fmtMoney(price)}`;
-
-      // простая визуальная подсказка (без цветов можно, но добавим через emoji)
       pnlValue.textContent = (lastPnl >= 0 ? '🟢 ' : '🔴 ') + fmtPct(lastPnl);
+      pnlDetails.textContent = `Вход: ${fmtMoney(entryPrice)} • Сейчас: ${fmtMoney(price)}`;
     }
 
     function resetUI() {
@@ -172,44 +143,23 @@
 
       entryRow.classList.remove('hidden');
       closeRow.classList.add('hidden');
-
       pnlBox.classList.add('hidden');
+
       posTag.classList.add('hidden');
       posTag.textContent = '';
-
-      // возвращаем обе кнопки (если были спрятаны)
-      longBtn.classList.remove('hidden');
-      shortBtn.classList.remove('hidden');
     }
 
-    function showTelegramNotice(text) {
-      if (tg?.showPopup) {
-        tg.showPopup({
-          title: 'Сделка закрыта',
-          message: text,
-          buttons: [{ type: 'ok' }]
-        });
-      } else if (tg?.showAlert) {
-        tg.showAlert(text);
-      } else {
-        alert(text);
-      }
-    }
-
-    // --- Trading actions
+    // --- Trading
     function openPosition(type) {
-      if (position) return; // уже открыта
-
+      if (position) return;
       position = type;
       entryPrice = price;
 
-      // UI: скрыть вторую кнопку, заменить выбранную на Close (мы делаем отдельной строкой closeRow)
       entryRow.classList.add('hidden');
       closeRow.classList.remove('hidden');
 
       pnlBox.classList.remove('hidden');
-
-      posTag.textContent = type === 'long' ? 'LONG' : 'SHORT';
+      posTag.textContent = type.toUpperCase();
       posTag.classList.remove('hidden');
 
       renderPnl();
@@ -217,11 +167,13 @@
 
     function closePosition() {
       if (!position) return;
-      renderPnl(); // чтобы взять актуальный pnl на момент закрытия
 
-      const text = `${position.toUpperCase()} • Вход: ${fmtMoney(entryPrice)} → Выход: ${fmtMoney(price)}\nИтог: ${fmtPct(lastPnl)}`;
-      showTelegramNotice(text);
+      renderPnl();
+      const text =
+        `${position.toUpperCase()} • Вход: ${fmtMoney(entryPrice)} → Выход: ${fmtMoney(price)}\n` +
+        `Итог: ${fmtPct(lastPnl)}`;
 
+      alert(text);      // ← гарантированно работает в браузере
       resetUI();
     }
 
@@ -230,20 +182,15 @@
     shortBtn.addEventListener('click', () => openPosition('short'));
     closeBtn.addEventListener('click', closePosition);
 
-    // --- Price loop (каждую секунду)
-    function tick() {
+    // --- Price loop
+    setInterval(() => {
       const step = randomStepWithin1pct();
-      price = price * (1 + step);
-      // маленькая защита от отрицательного/нулевого
-      price = Math.max(price, 1);
-
+      price = Math.max(price * (1 + step), 1);
       renderPrice();
       if (position) renderPnl();
-    }
+    }, 1000);
 
-    // старт
     renderPrice();
-    intervalId = setInterval(tick, 1000);
   </script>
 </body>
 </html>
