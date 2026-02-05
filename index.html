@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BTC Mini Trader</title>
+
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    :root { --bg:#0b1220; --card:#111a2c; --text:#e6eefc; --muted:#9bb0d0; }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; padding:16px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    .wrap{ max-width:520px; margin:0 auto; }
+    .card{
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .title{ font-size:18px; margin:0 0 10px 0; }
+    .price{
+      font-size:34px; font-weight:800; letter-spacing: .2px;
+      margin: 0 0 4px 0;
+    }
+    .sub{ color: var(--muted); margin:0 0 16px 0; font-size:13px; }
+    .row{ display:flex; gap:12px; }
+    button{
+      width:100%;
+      padding:14px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.10);
+      color: var(--text);
+      background: rgba(255,255,255,.06);
+      font-size:16px;
+      font-weight:700;
+      cursor:pointer;
+      transition: transform .05s ease;
+      user-select:none;
+    }
+    button:active{ transform: scale(.99); }
+    .hidden{ display:none !important; }
+
+    .pnlBox{
+      margin-top:14px;
+      padding:12px;
+      border-radius: 12px;
+      border: 1px dashed rgba(255,255,255,.14);
+      background: rgba(255,255,255,.03);
+    }
+    .pnlLabel{ color: var(--muted); font-size:13px; margin:0 0 6px 0; }
+    .pnlValue{ font-size:22px; font-weight:800; margin:0; }
+    .small{ color: var(--muted); font-size:12px; margin-top:10px; }
+    .tag{
+      display:inline-block;
+      padding:4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      font-size:12px; color: var(--muted);
+      margin-left:8px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1 class="title">Мини-трейдер BTC/USD <span id="posTag" class="tag hidden"></span></h1>
+
+      <p class="price" id="price">$0.00</p>
+      <p class="sub" id="hint">Курс меняется каждую секунду на ±1% (случайно).</p>
+
+      <div class="row" id="entryRow">
+        <button id="longBtn">Лонг</button>
+        <button id="shortBtn">Шорт</button>
+      </div>
+
+      <div class="row hidden" id="closeRow">
+        <button id="closeBtn">Закрыть</button>
+      </div>
+
+      <div class="pnlBox hidden" id="pnlBox">
+        <p class="pnlLabel">Текущий результат (PnL)</p>
+        <p class="pnlValue" id="pnlValue">0.00%</p>
+        <div class="small" id="pnlDetails"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Telegram init (не обязательно, но красиво для Mini App)
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+      // tg.setHeaderColor('#0b1220'); // опционально
+      // tg.setBackgroundColor('#0b1220'); // опционально
+    }
+
+    // --- State
+    let price = 45000;              // стартовая цена (любая)
+    let intervalId = null;
+
+    let position = null;            // null | 'long' | 'short'
+    let entryPrice = null;
+    let lastPnl = 0;
+
+    // --- DOM
+    const priceEl = document.getElementById('price');
+    const longBtn = document.getElementById('longBtn');
+    const shortBtn = document.getElementById('shortBtn');
+    const closeBtn = document.getElementById('closeBtn');
+
+    const entryRow = document.getElementById('entryRow');
+    const closeRow = document.getElementById('closeRow');
+    const pnlBox = document.getElementById('pnlBox');
+    const pnlValue = document.getElementById('pnlValue');
+    const pnlDetails = document.getElementById('pnlDetails');
+    const posTag = document.getElementById('posTag');
+
+    // --- Helpers
+    function fmtMoney(x) {
+      return x.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+    }
+    function fmtPct(x) {
+      const sign = x > 0 ? '+' : '';
+      return `${sign}${x.toFixed(2)}%`;
+    }
+
+    function randomStepWithin1pct() {
+      // случайное число от -0.01 до +0.01
+      return (Math.random() * 2 - 1) * 0.01;
+    }
+
+    function calcPnlPercent() {
+      if (!position || !entryPrice) return 0;
+      if (position === 'long') {
+        return (price / entryPrice - 1) * 100;
+      } else {
+        // short: прибыль, когда цена падает
+        return (entryPrice / price - 1) * 100;
+      }
+    }
+
+    function renderPrice() {
+      priceEl.textContent = fmtMoney(price);
+    }
+
+    function renderPnl() {
+      if (!position) return;
+      lastPnl = calcPnlPercent();
+
+      pnlValue.textContent = fmtPct(lastPnl);
+      pnlDetails.textContent = `Вход: ${fmtMoney(entryPrice)} • Сейчас: ${fmtMoney(price)}`;
+
+      // простая визуальная подсказка (без цветов можно, но добавим через emoji)
+      pnlValue.textContent = (lastPnl >= 0 ? '🟢 ' : '🔴 ') + fmtPct(lastPnl);
+    }
+
+    function resetUI() {
+      position = null;
+      entryPrice = null;
+      lastPnl = 0;
+
+      entryRow.classList.remove('hidden');
+      closeRow.classList.add('hidden');
+
+      pnlBox.classList.add('hidden');
+      posTag.classList.add('hidden');
+      posTag.textContent = '';
+
+      // возвращаем обе кнопки (если были спрятаны)
+      longBtn.classList.remove('hidden');
+      shortBtn.classList.remove('hidden');
+    }
+
+    function showTelegramNotice(text) {
+      if (tg?.showPopup) {
+        tg.showPopup({
+          title: 'Сделка закрыта',
+          message: text,
+          buttons: [{ type: 'ok' }]
+        });
+      } else if (tg?.showAlert) {
+        tg.showAlert(text);
+      } else {
+        alert(text);
+      }
+    }
+
+    // --- Trading actions
+    function openPosition(type) {
+      if (position) return; // уже открыта
+
+      position = type;
+      entryPrice = price;
+
+      // UI: скрыть вторую кнопку, заменить выбранную на Close (мы делаем отдельной строкой closeRow)
+      entryRow.classList.add('hidden');
+      closeRow.classList.remove('hidden');
+
+      pnlBox.classList.remove('hidden');
+
+      posTag.textContent = type === 'long' ? 'LONG' : 'SHORT';
+      posTag.classList.remove('hidden');
+
+      renderPnl();
+    }
+
+    function closePosition() {
+      if (!position) return;
+      renderPnl(); // чтобы взять актуальный pnl на момент закрытия
+
+      const text = `${position.toUpperCase()} • Вход: ${fmtMoney(entryPrice)} → Выход: ${fmtMoney(price)}\nИтог: ${fmtPct(lastPnl)}`;
+      showTelegramNotice(text);
+
+      resetUI();
+    }
+
+    // --- Events
+    longBtn.addEventListener('click', () => openPosition('long'));
+    shortBtn.addEventListener('click', () => openPosition('short'));
+    closeBtn.addEventListener('click', closePosition);
+
+    // --- Price loop (каждую секунду)
+    function tick() {
+      const step = randomStepWithin1pct();
+      price = price * (1 + step);
+      // маленькая защита от отрицательного/нулевого
+      price = Math.max(price, 1);
+
+      renderPrice();
+      if (position) renderPnl();
+    }
+
+    // старт
+    renderPrice();
+    intervalId = setInterval(tick, 1000);
+  </script>
+</body>
+</html>
