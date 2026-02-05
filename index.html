@@ -26,7 +26,17 @@
       font-size:34px; font-weight:800; letter-spacing: .2px;
       margin: 0 0 4px 0;
     }
-    .sub{ color: var(--muted); margin:0 0 16px 0; font-size:13px; }
+    .sub{ color: var(--muted); margin:0 0 12px 0; font-size:13px; }
+
+    .chartWrap{
+      margin: 8px 0 14px 0;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.03);
+      overflow:hidden;
+    }
+    canvas{ display:block; width:100%; height:170px; }
+
     .row{ display:flex; gap:12px; }
     button{
       width:100%;
@@ -41,6 +51,7 @@
       user-select:none;
     }
     .hidden{ display:none !important; }
+
     .pnlBox{
       margin-top:14px;
       padding:12px;
@@ -70,7 +81,11 @@
       <h1 class="title">Мини-трейдер BTC/USD <span id="posTag" class="tag hidden"></span></h1>
 
       <p class="price" id="price">$45,000.00</p>
-      <p class="sub">Курс меняется каждую секунду на ±1% (случайно).</p>
+      <p class="sub">Курс меняется каждую секунду на ±1% (случайно). График: последние 10 свечей.</p>
+
+      <div class="chartWrap">
+        <canvas id="chart" width="520" height="170"></canvas>
+      </div>
 
       <div class="row" id="entryRow">
         <button id="longBtn">Лонг</button>
@@ -96,6 +111,10 @@
     let entryPrice = null;
     let lastPnl = 0;
 
+    // Candles: [{o,h,l,c}]
+    const MAX_CANDLES = 10;
+    const candles = [];
+
     // --- DOM
     const priceEl = document.getElementById('price');
     const longBtn = document.getElementById('longBtn');
@@ -108,6 +127,21 @@
     const pnlDetails = document.getElementById('pnlDetails');
     const posTag = document.getElementById('posTag');
 
+    const canvas = document.getElementById('chart');
+    const ctx = canvas.getContext('2d');
+
+    // Make canvas crisp on HiDPI
+    function resizeCanvasToDisplaySize() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.round(rect.width * dpr);
+      const h = Math.round(rect.height * dpr);
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    }
+
     // --- Helpers
     function fmtMoney(x) {
       return x.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
@@ -119,6 +153,7 @@
     function randomStepWithin1pct() {
       return (Math.random() * 2 - 1) * 0.01; // -1%..+1%
     }
+    function randBetween(a, b) { return a + Math.random() * (b - a); }
 
     function calcPnlPercent() {
       if (!position || !entryPrice) return 0;
@@ -173,25 +208,150 @@
         `${position.toUpperCase()} • Вход: ${fmtMoney(entryPrice)} → Выход: ${fmtMoney(price)}\n` +
         `Итог: ${fmtPct(lastPnl)}`;
 
-      alert(text);      // ← гарантированно работает в браузере
+      alert(text);
       resetUI();
+    }
+
+    // --- Candles
+    function pushCandle(open, close) {
+      // делаем фитили (high/low) чуть шире, чем тело
+      const baseHi = Math.max(open, close);
+      const baseLo = Math.min(open, close);
+
+      // случайные "фитили" до ~0.3% от цены
+      const wickUp = baseHi * randBetween(0, 0.003);
+      const wickDn = baseLo * randBetween(0, 0.003);
+
+      const high = baseHi + wickUp;
+      const low = Math.max(1, baseLo - wickDn);
+
+      candles.push({ o: open, h: high, l: low, c: close });
+      while (candles.length > MAX_CANDLES) candles.shift();
+    }
+
+    function seedCandles() {
+      // начальные 10 свечей, чтобы график сразу был заполнен
+      let p = price;
+      for (let i = 0; i < MAX_CANDLES; i++) {
+        const step = randomStepWithin1pct();
+        const next = Math.max(p * (1 + step), 1);
+        pushCandle(p, next);
+        p = next;
+      }
+      price = p;
+      renderPrice();
+    }
+
+    // --- Chart drawing
+    function drawChart() {
+      resizeCanvasToDisplaySize();
+      const W = canvas.width, H = canvas.height;
+
+      // background
+      ctx.clearRect(0, 0, W, H);
+
+      const pad = Math.round(12 * (window.devicePixelRatio || 1));
+      const innerW = W - pad * 2;
+      const innerH = H - pad * 2;
+
+      // if no data
+      if (candles.length === 0) return;
+
+      // Determine scale from highs/lows
+      let hi = -Infinity, lo = Infinity;
+      for (const c of candles) {
+        if (c.h > hi) hi = c.h;
+        if (c.l < lo) lo = c.l;
+      }
+
+      // add small margin
+      const margin = (hi - lo) * 0.08 || hi * 0.01;
+      hi += margin;
+      lo -= margin;
+
+      function yOf(val) {
+        const t = (val - lo) / (hi - lo);
+        return pad + (innerH * (1 - t));
+      }
+
+      // grid (simple 3 horizontal lines)
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = 'rgba(255,255,255,0.20)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i <= 3; i++) {
+        const y = pad + innerH * (i / 4);
+        ctx.beginPath();
+        ctx.moveTo(pad, y);
+        ctx.lineTo(pad + innerW, y);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      const n = candles.length;
+      const slot = innerW / n;
+      const bodyW = Math.max(3, slot * 0.55);
+
+      for (let i = 0; i < n; i++) {
+        const c = candles[i];
+        const xCenter = pad + slot * (i + 0.5);
+
+        const yOpen = yOf(c.o);
+        const yClose = yOf(c.c);
+        const yHigh = yOf(c.h);
+        const yLow  = yOf(c.l);
+
+        const isGreen = c.c >= c.o;
+
+        // wick
+        ctx.strokeStyle = isGreen ? 'rgba(0,255,140,0.85)' : 'rgba(255,70,70,0.85)';
+        ctx.lineWidth = Math.max(1, bodyW * 0.12);
+        ctx.beginPath();
+        ctx.moveTo(xCenter, yHigh);
+        ctx.lineTo(xCenter, yLow);
+        ctx.stroke();
+
+        // body
+        const top = Math.min(yOpen, yClose);
+        const bottom = Math.max(yOpen, yClose);
+        const bodyH = Math.max(2, bottom - top);
+
+        ctx.fillStyle = isGreen ? 'rgba(0,255,140,0.85)' : 'rgba(255,70,70,0.85)';
+        ctx.fillRect(
+          xCenter - bodyW / 2,
+          top,
+          bodyW,
+          bodyH
+        );
+      }
     }
 
     // --- Events
     longBtn.addEventListener('click', () => openPosition('long'));
     shortBtn.addEventListener('click', () => openPosition('short'));
     closeBtn.addEventListener('click', closePosition);
+    window.addEventListener('resize', drawChart);
 
-    // --- Price loop
-    setInterval(() => {
+    // --- Main loop (каждую секунду)
+    function tick() {
+      const open = price;
       const step = randomStepWithin1pct();
-      price = Math.max(price * (1 + step), 1);
-      renderPrice();
-      if (position) renderPnl();
-    }, 1000);
+      const close = Math.max(open * (1 + step), 1);
 
-    renderPrice();
+      price = close;
+
+      pushCandle(open, close);
+      renderPrice();
+      drawChart();
+
+      if (position) renderPnl();
+    }
+
+    // старт
+    seedCandles();
+    drawChart();
+    setInterval(tick, 1000);
   </script>
 </body>
 </html>
+
 
